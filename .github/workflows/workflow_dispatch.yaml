@@ -1,0 +1,17 @@
+name: Trigger Notes Actions
+
+on:
+  workflow_dispatch:
+  issues:
+    types: [opened]
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.ACCESS_TOKEN }}
+          repository: cosdt/vllm-ascend-integration-ci
+          event-type: build-and-deploy
