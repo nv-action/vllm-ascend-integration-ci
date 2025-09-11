@@ -9,9 +9,47 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Repository Dispatch
+      # - name: Launch Cluster and Deploy
+      #   uses: peter-evans/repository-dispatch@v3
+      #   with:
+      #     token: ${{ secrets.ACCESS_TOKEN }}
+      #     repository: cosdt/vllm-ascend-integration-ci
+      #     event-type: build-and-deploy
+
+      - name: Get Cluster Log
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.ACCESS_TOKEN }}
           repository: cosdt/vllm-ascend-integration-ci
-          event-type: build-and-deploy
+          event-type: get-cluster-log
+
+      - name: Setup gh cli
+        uses: cli/cli-action@v2
+
+      - name: Wait for vllm-ascend-integration-ci repo run_id
+        id: get-run
+        run: |
+          echo "Waiting for log workflow to start..."
+          for i in {1..20}; do
+            RUN_ID=$(gh run list \
+              --repo cosdt/vllm-ascend-integration-ci \
+              --workflow "Get Cluster Log" \
+              --status in_progress \
+              --json databaseId \
+              --jq '.[0].databaseId' || true)
+            if [ -n "$RUN_ID" ]; then
+              echo "Found run_id: $RUN_ID"
+              echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "Not found yet, retry in 10s..."
+            sleep 10
+          done
+          echo "❌ Timeout waiting for B repo run"
+          exit 1
+
+      - name: Stream logs from B repo
+        run: |
+          RUN_ID=${{ steps.get-run.outputs.run_id }}
+          echo "Streaming logs from run $RUN_ID"
+          gh run watch $RUN_ID --repo cosdt/vllm-ascend-integration-ci
